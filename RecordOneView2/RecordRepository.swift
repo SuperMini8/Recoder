@@ -31,19 +31,26 @@ final class RecordRepository {
     func updateDuration(_ record: RecordData, duration: Float) {
         record.recordTime = duration
     }
-    /// 刪除
+    /// 刪除（先刪除資料再刪檔案 -> 防止看得到卻沒檔案的狀況）
     func delete(_ record: RecordData) throws {
-        // 先刪除音檔
-        let recordURL = URL(fileURLWithPath: NSHomeDirectory().appending("/Documents/\(record.recordID).wav"))
-        if FileManager.default.fileExists(atPath: recordURL.path) {
-            try FileManager.default.removeItem(at: recordURL)
-        }
+        let recordURL = try record.fileURL()
+        // 先刪除資料
         context.delete(record)
         try save()
+        // 再刪檔案
+        if FileManager.default.fileExists(atPath: recordURL.path) {
+            do {
+                try FileManager.default.removeItem(at: recordURL)
+            } catch {
+                print("刪除音檔失敗：\(error.localizedDescription)")
+            }
+        }
     }
     /// 儲存修改
     func save() throws {
         guard context.hasChanges else { return }
         try context.save()
     }
+    
+    
 }

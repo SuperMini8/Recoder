@@ -19,6 +19,7 @@
 		ECBB19A13015B89C00C11F8B /* RecordViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBB19A03015B89C00C11F8B /* RecordViewModel.swift */; };
 		ECBB19A33015E7AE00C11F8B /* RecordRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBB19A23015E7AE00C11F8B /* RecordRepository.swift */; };
 		ECBB19A53015FBD400C11F8B /* AudioRecorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBB19A43015FBD400C11F8B /* AudioRecorderService.swift */; };
+		ECBB19A73016342500C11F8B /* AudioPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBB19A63016342500C11F8B /* AudioPlayerService.swift */; };
 		ECC864492774895E00FDD1BC /* CoreDataHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC864482774895E00FDD1BC /* CoreDataHelper.swift */; };
 		ECC8644C2774896800FDD1BC /* Model.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = ECC8644A2774896800FDD1BC /* Model.xcdatamodeld */; };
 /* End PBXBuildFile section */
@@ -39,6 +40,7 @@
 		ECBB19A03015B89C00C11F8B /* RecordViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordViewModel.swift; sourceTree = "<group>"; };
 		ECBB19A23015E7AE00C11F8B /* RecordRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordRepository.swift; sourceTree = "<group>"; };
 		ECBB19A43015FBD400C11F8B /* AudioRecorderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderService.swift; sourceTree = "<group>"; };
+		ECBB19A63016342500C11F8B /* AudioPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerService.swift; sourceTree = "<group>"; };
 		ECC864482774895E00FDD1BC /* CoreDataHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreDataHelper.swift; sourceTree = "<group>"; };
 		ECC8644B2774896800FDD1BC /* Model.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Model.xcdatamodel; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -87,6 +89,7 @@
 				ECBB19A23015E7AE00C11F8B /* RecordRepository.swift */,
 				ECBB199E3015A63700C11F8B /* SoundQuality.swift */,
 				ECBB19A43015FBD400C11F8B /* AudioRecorderService.swift */,
+				ECBB19A63016342500C11F8B /* AudioPlayerService.swift */,
 			);
 			path = RecordOneView2;
 			sourceTree = "<group>";
@@ -183,6 +186,7 @@
 				ECBB19A13015B89C00C11F8B /* RecordViewModel.swift in Sources */,
 				ECBB19A53015FBD400C11F8B /* AudioRecorderService.swift in Sources */,
 				ECBB199F3015A63700C11F8B /* SoundQuality.swift in Sources */,
+				ECBB19A73016342500C11F8B /* AudioPlayerService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

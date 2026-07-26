@@ -34,11 +34,11 @@ class RecorderHelper {
     
     /// 設定麥克風
     func setRecorder(fileName: String, setting: [String: Any]) throws -> AVAudioRecorder {
-        // 給檔案名，製作URL
-        let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let url = docURL.appendingPathComponent("\(fileName).wav")
+
+        let recordDataURL = try RecordData.fileURL(for: fileName, createDirectory: true)
+        
         var recorder = AVAudioRecorder()
-        recorder = try AVAudioRecorder(url: url, settings: setting)
+        recorder = try AVAudioRecorder(url: recordDataURL, settings: setting)
         return recorder
     }
     

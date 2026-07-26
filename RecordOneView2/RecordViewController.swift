@@ -12,15 +12,12 @@ class RecordViewController: UIViewController {
     @IBOutlet weak var stopButton: UIButton!     //停止按鈕
     @IBOutlet weak var playButton: UIButton!    //播放按鈕
     @IBOutlet weak var editNameButton: UIButton!     //編輯名字按鈕
-    var docURL : URL = URL(fileURLWithPath: NSHomeDirectory().appending("/Documents"))
-    var player : AVAudioPlayer?       //播放器
-    var recordSetting : [String:Any] = RecorderHelper.share.recorderSetting(qualityType: .low)
     var timer : Timer?  //更新畫面用的計時器
-    var indexPath : IndexPath?  //記錄點選的位置
     var playingTime : Float = 0
     
     private var viewModel = RecordViewModel()
     private var recorderService = AudioRecorderService()
+    private var playerService = AudioPlayerService()
         
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -138,15 +135,20 @@ class RecordViewController: UIViewController {
             recorderService.stop()
             if let recordData = self.viewModel.currentRecordingData {
                 do {
-                    try viewModel.finishRecording(duration: recordData.recordTime)
+                    try viewModel.finishCurrentRecording(duration: recordData.recordTime)
                     let indexPath = IndexPath(row: 0, section: 0)
                     self.tableView.reloadRows(at:[indexPath] , with: .automatic)
                 } catch {
-                    print("儲存失敗：\(error.localizedDescription)")
-                    // alert 提醒失敗
-                    showAlert(title: "儲存失敗", message: error.localizedDescription)
-                    // 把畫面已經出現的檔案刪除(可能檔案不在，沒刪除成功也不用管 error）
-                    try? viewModel.deleteRecord(at: 0)
+                    do {
+                        try viewModel.discardCurrentRecording()
+                        let indexPath = IndexPath(row: 0, section: 0)
+                        self.tableView.deleteRows(at: [indexPath], with: .automatic)
+                        // alert 提醒失敗
+                        showAlert(title: "儲存失敗", message: error.localizedDescription)
+                    } catch {
+                        print("清除未完成錄音失敗：\(error.localizedDescription)")
+                        showAlert(title: "儲存失敗", message: "錄音沒有成功儲存，且清除未完成錄音時發生錯誤：\(error.localizedDescription)")
+                    }
                 }
             }
             recorderService.clearRecorder()
@@ -158,18 +160,15 @@ class RecordViewController: UIViewController {
         case .playing,
              .playingPause:
             viewModel.viewState = .none
-            if let player = self.player {
-                player.stop()
-                self.playingTime = 0
-                self.timer?.invalidate()
-                self.timer = nil
-                self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
-                self.player = nil
-                if let indexPath = self.indexPath{
-                    let recordData = self.viewModel.recordDatas[indexPath.row]
-                    self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(recordData.recordTime)/60)/60,(Int(recordData.recordTime)/60)%60,Int(recordData.recordTime)%60) as String
-                    self.playTimeSlider.value = 0
-                }
+            playerService.stop()
+            playerService.clearPlayer()
+            self.playingTime = 0
+            self.timer?.invalidate()
+            self.timer = nil
+            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
+            if let selectedRecordData = viewModel.selectedRecordData {
+                self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(selectedRecordData.recordTime)/60)/60,(Int(selectedRecordData.recordTime)/60)%60,Int(selectedRecordData.recordTime)%60) as String
+                self.playTimeSlider.value = 0
             }
             
         default:
@@ -179,73 +178,72 @@ class RecordViewController: UIViewController {
     }
     //MARK: 播放按鈕
     @IBAction func play(_ sender: UIButton) {
-        if self.player == nil {    //先設置麥克風
+        // 先設置播放器
+        if playerService.isNeedSetPlayer() {
+            guard let selectedRecordData = viewModel.selectedRecordData else { return }
             do {
-                if let indexPath = self.indexPath {
-                    let recordData = self.viewModel.recordDatas[indexPath.row]    //取出位置中的檔案
-                    let recordURL = self.docURL.appendingPathComponent("\(recordData.recordID).wav")
-                    self.player = try AVAudioPlayer(contentsOf: recordURL)
-                }
-            } catch  {
-                print("麥克風設置失敗\(error)")
+                try playerService.setPlayer(selectedRecordData)
+            } catch {
+                print("播放器設置失敗\(error)")
+                return
             }
         }
-        if let player = self.player {
-            if player.isPlaying{   //判斷是否正在播放
-                viewModel.viewState = .playingPause
-                player.pause()
-                self.playingTime = 0
-                print("播放暫停")
-                self.timer?.invalidate()
-                self.timer = nil
-                self.playButton.setBackgroundImage(UIImage(systemName: "play.circle.fill"), for: .normal)  //暫停時，將按鈕改成再播放鍵
-            }else{
-                if self.playingTime != 0 {
-                    player.currentTime = Double(self.playingTime)
-                }
-                viewModel.viewState = .playing
-                player.play()
-                self.playingTime = 0
-                print("播放開始")
-                if self.timer == nil {
-                self.timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(playTime), userInfo: nil, repeats: true)
-                }
-                self.playButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal) //播放中，按鈕改成暫停鍵
-                isPlayingAboutButton()
+        // 依狀態決定播放 or 暫停
+        switch viewModel.viewState {
+        // 正在播放（此時傳進來的為暫停）
+        case .playing:
+            viewModel.viewState = .playingPause
+            playerService.pause()
+            self.playingTime = 0
+            self.timer?.invalidate()
+            self.timer = nil
+            //暫停時，將按鈕改成再播放鍵
+            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle.fill"), for: .normal)
+            
+        // 其餘狀態（此時傳進來的為播放）
+        default:
+            viewModel.viewState = .playing
+            if self.playingTime != 0 {
+                playerService.setPlayingCurrentTime(Double(self.playingTime))
             }
+            playerService.play()
+            self.playingTime = 0
+            if self.timer == nil {
+            self.timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(playTime), userInfo: nil, repeats: true)
+            }
+            //播放中，按鈕改成暫停鍵
+            self.playButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal)
+            isPlayingAboutButton()
         }
     }
     //MARK: 拖動進度條
     @IBAction func changePlayTime(_ sender: UISlider) {
         self.playingTime = self.playTimeSlider.value
+        playerService.setPlayingCurrentTime(Double(playingTime))
         let changeTime = Int(playingTime)
-        if let player = self.player {
-            player.currentTime = Double(playingTime)
-        }
         self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (changeTime/60)/60,(changeTime/60)%60,changeTime%60) as String
     }
-    //MARK: 播放時間
+    // MARK: 播放時間
     @objc func playTime () {
-        if let player = self.player {
-            if player.isPlaying{ //如果正在播放
-                let playTime = Int(player.currentTime)  //就更新時間
-                self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (playTime/60)/60,(playTime/60)%60,playTime%60) as String
-                self.playTimeSlider.value = Float(player.currentTime)
-            } else  {
-            //播放結束
-                self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)  //播放鍵變回一般的
-                allStopAboutButton()
-                self.playingTime = 0
-                self.timer?.invalidate()     //計時器停止
-                self.timer = nil
-                self.player = nil
-                viewModel.viewState = .none
-            }
+        if playerService.isPlaying() {
+            let playTime = Int(playerService.getPlayingCurrentTime())
+            self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (playTime/60)/60,(playTime/60)%60,playTime%60) as String
+            self.playTimeSlider.value = Float(playerService.getPlayingCurrentTime())
+        } else {
+            viewModel.viewState = .selectedData
+            playerService.clearPlayer()
+            //播放鍵變回一般的
+            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
+            allStopAboutButton()
+            self.playingTime = 0
+            self.timer?.invalidate()     //計時器停止
+            self.timer = nil
         }
     }
     // MARK: 編輯名字
     @IBAction func editName(_ sender: Any) {
-        if let indexPath = self.indexPath {
+        if let selectedRecordData = viewModel.selectedRecordData,
+           let selectedIndex = viewModel.selectedRecordIndex {
             //使用alert來改名
             let alert = UIAlertController(title: "請輸入標題", message: nil, preferredStyle: .alert)
             let ok = UIAlertAction(title: "確定", style: .default) { [weak self] _ in
@@ -254,16 +252,15 @@ class RecordViewController: UIViewController {
                 self?.editNameButton.isEnabled = false
                 self?.playTimeSlider.isEnabled = false
                 do {
-                    try self?.viewModel.renameRecord(at: indexPath.row, title: text)
-                    self?.tableView.reloadRows(at: [indexPath], with: .automatic)
+                    try self?.viewModel.renameRecord(at: selectedIndex, title: text)
+                    self?.tableView.reloadRows(at: [IndexPath(row: selectedIndex, section: 0)], with: .automatic)
                 } catch {
                     print("命名儲存失敗：\(error.localizedDescription)")
                 }
             }
             let cancel = UIAlertAction(title: "取消", style: .cancel, handler: nil)
-            let recordData = self.viewModel.recordDatas[indexPath.row]    //取出位置中的檔案
             alert.addTextField(configurationHandler: { textField in
-                textField.text = recordData.title
+                textField.text = selectedRecordData.title
             })
             alert.addAction(ok)
             alert.addAction(cancel)
@@ -274,7 +271,6 @@ class RecordViewController: UIViewController {
     @IBAction func changeSetting(_ sender: UISegmentedControl) {
         guard let type = SoundQuality(rawValue: sender.selectedSegmentIndex) else { return }
         viewModel.qualityType = type
-        recordSetting = RecorderHelper.share.recorderSetting(qualityType: viewModel.qualityType)
     }
     //MARK: 離開畫面的時候
     override func viewWillDisappear(_ animated: Bool) {
@@ -286,15 +282,15 @@ class RecordViewController: UIViewController {
         recorderService.stop()
         if let recordData = self.viewModel.currentRecordingData {
             do {
-                try viewModel.finishRecording(duration: recordData.recordTime)
-                let indexPath = IndexPath(row: 0, section: 0)
-                self.tableView.reloadRows(at:[indexPath] , with: .automatic)
+                try viewModel.finishCurrentRecording(duration: recordData.recordTime)
             } catch {
+                // viewWillDisappear 不 show alert 純 print
                 print("儲存失敗：\(error.localizedDescription)")
-                // alert 提醒失敗
-                showAlert(title: "儲存失敗", message: error.localizedDescription)
-                // 把畫面已經出現的檔案刪除(可能檔案不在，沒刪除成功也不用管 error）
-                try? viewModel.deleteRecord(at: 0)
+                do {
+                    try viewModel.discardCurrentRecording()
+                } catch {
+                    print("清除未完成錄音失敗：\(error.localizedDescription)")
+                }
             }
         }
         recorderService.clearRecorder()
@@ -305,11 +301,10 @@ class RecordViewController: UIViewController {
     //MARK: 傳送檔案
     @IBOutlet weak var shareButton: UIBarButtonItem!
     @IBAction func share(_ sender: UIBarButtonItem) {
-        if let indexPath = self.indexPath {
-            let recordData = self.viewModel.recordDatas[indexPath.row]     //取出位置中的檔案
-                let recordURL = self.docURL.appendingPathComponent("\(recordData.recordID).wav")
-                let share = UIActivityViewController(activityItems: [recordURL], applicationActivities: nil)
-                present(share, animated: true, completion: nil)
+        if let selectedData = viewModel.selectedRecordData,
+            let fileURL = try? selectedData.fileURL() {
+            let share = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+            present(share, animated: true, completion: nil)
             
         }
     }
@@ -354,11 +349,25 @@ class RecordViewController: UIViewController {
     }
     
     /// 顯示 alert
-    func showAlert(title: String?, message: String?) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        let okAction = UIAlertAction(title: "確認", style: .default)
-        alert.addAction(okAction)
-        present(alert, animated: true)
+    func showAlert(title: String?,
+                   message: String?,
+                   alertStyle: UIAlertController.Style = .alert,
+                   action1Title: String? = nil,
+                   action1Style: UIAlertAction.Style = .default,
+                   action1Handler: ((UIAlertAction) -> Void)? = nil,
+                   action2Title: String? = nil,
+                   action2Style: UIAlertAction.Style = .default,
+                   action2Handler: ((UIAlertAction) -> Void)? = nil) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: alertStyle)
+        let action1 = UIAlertAction(title: action1Title ?? "確認", style: action1Style, handler: action1Handler)
+        alert.addAction(action1)
+        if action2Title != nil {
+            let action2 = UIAlertAction(title: action2Title, style: action2Style, handler: action2Handler)
+            alert.addAction(action2)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.present(alert, animated: true)
+        }
     }
 }
 
@@ -378,8 +387,12 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
     
     // MARK: - UITableViewDelegate
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        let alert = UIAlertController(title: "確定要刪除嗎？", message: "刪除後將無法復原", preferredStyle: .actionSheet)
-        let ok = UIAlertAction(title: "刪除", style: .destructive) {[weak self] _ in
+        showAlert(title: "確定要刪除嗎？",
+                  message: "刪除後將無法復原",
+                  alertStyle: .actionSheet,
+                  action1Title: "刪除",
+                  action1Style: .destructive,
+                  action1Handler: { [weak self] _ in
             guard let self = self else { return }
             do {
                 try self.viewModel.deleteRecord(at: indexPath.row)
@@ -392,25 +405,20 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
             self.playButton.isEnabled = false
             self.stopButton.isEnabled = false
             self.shareButton.isEnabled = false
-        }
-        let cancel = UIAlertAction(title: "取消", style: .cancel)
-        alert.addAction(ok)
-        alert.addAction(cancel)
-        DispatchQueue.main.async {
-            self.present(alert, animated: true)
-        }
+        },
+                  action2Title: "取消",
+                  action2Style: .cancel
+        )
     }
-    //MARK: 選擇row
+    // MARK: 選擇row
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if self.player == nil {
-            self.indexPath = indexPath
-            let recordData = self.viewModel.recordDatas[indexPath.row]
-            self.settingSegment.selectedSegmentIndex = recordData.qualityType
-            selectedRowAboutButton()
-            self.playTimeSlider.maximumValue = Float(recordData.recordTime)
-            self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(recordData.recordTime)/60)/60,(Int(recordData.recordTime)/60)%60,Int(recordData.recordTime)%60) as String
-            print("\(indexPath)")
-        }
+        guard viewModel.viewState == .none || viewModel.viewState == .selectedData  else { return }
+        viewModel.selectRecord(at: indexPath.row)
+        guard let selectedData = viewModel.selectedRecordData else { return }
+        settingSegment.selectedSegmentIndex = selectedData.qualityType
+        selectedRowAboutButton()
+        playTimeSlider.maximumValue = Float(selectedData.recordTime)
+        self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(selectedData.recordTime)/60)/60,(Int(selectedData.recordTime)/60)%60,Int(selectedData.recordTime)%60) as String
     }
 
     

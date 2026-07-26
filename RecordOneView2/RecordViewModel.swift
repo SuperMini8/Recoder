@@ -37,6 +37,18 @@ final class RecordViewModel {
     private(set) var recordDatas: [RecordData] = []
     /// 正在錄音的檔案
     private(set) var currentRecordingData: RecordData?
+    /// 正在選擇的檔案 ID
+    private(set) var selectedRecordID: String?
+    /// 正在選擇的檔案
+    var selectedRecordData: RecordData? {
+        guard let selectedRecordID else { return nil }
+        return recordDatas.first { $0.recordID == selectedRecordID }
+    }
+    /// 正在選擇的檔案 index
+    var selectedRecordIndex: Int? {
+        guard let selectedRecordID else { return nil }
+        return recordDatas.firstIndex { $0.recordID == selectedRecordID }
+    }
     
     /// 取得錄音資料
     func loadRecords() {
@@ -49,11 +61,24 @@ final class RecordViewModel {
         recordDatas.insert(record, at: 0)
     }
     /// 錄音完成，儲存
-    func finishRecording(duration: Float) throws {
+    func finishCurrentRecording(duration: Float) throws {
         guard let record = currentRecordingData else { return }
         repository.updateDuration(record, duration: duration)
         try repository.save()
         currentRecordingData = nil
+    }
+    /// 放棄正在錄音的檔案
+    func discardCurrentRecording() throws {
+        guard let record = currentRecordingData else { return }
+        let recordID = record.recordID
+
+        try repository.delete(record)
+        recordDatas.removeAll { $0.recordID == recordID }
+        currentRecordingData = nil
+        // 正常流程應該無法點擊
+        if selectedRecordID == recordID {
+            clearSelection()
+        }
     }
     /// 更新 Title
     func renameRecord(at index: Int, title: String) throws {
@@ -62,9 +87,20 @@ final class RecordViewModel {
     }
     /// 刪除錄音檔
     func deleteRecord(at index: Int) throws {
+        guard recordDatas.indices.contains(index) else { return }
         let record = recordDatas[index]
+        let isDeletingSelectedRecord = record.recordID == selectedRecordID
+        let isDeletingCurrentRecording = record.recordID == currentRecordingData?.recordID
+        
         try repository.delete(record)
         recordDatas.remove(at: index)
+
+        if isDeletingSelectedRecord {
+            clearSelection()
+        }
+        if isDeletingCurrentRecording {
+            currentRecordingData = nil
+        }
     }
     /// 取得「編輯按鈕」的顯示文字
     func getEditButtonText() -> String {
@@ -78,6 +114,15 @@ final class RecordViewModel {
     func getPlayerButtonImage() -> String {
         return (viewState == .playing) ? "pause.circle" : "play.circle.fill"
     }
-    
-    
+    /// 記錄已選擇的檔案
+    func selectRecord(at index: Int) {
+        guard recordDatas.indices.contains(index) else { return }
+        selectedRecordID = recordDatas[index].recordID
+        viewState = .selectedData
+    }
+    /// 清除已選擇狀態
+    func clearSelection() {
+        selectedRecordID = nil
+        viewState = .none
+    }
 }
