@@ -26,6 +26,23 @@ enum RecordViewState {
     case editing
 }
 
+/// 由 viewState 推導出的各控制項狀態（單一真相來源，避免散落的 .isEnabled 漂移）
+struct ControlState {
+    var record = false
+    var stop = false
+    var play = false
+    var segment = false
+    var edit = false
+    var editName = false
+    var share = false
+    var slider = false
+    var tableInteraction = false
+
+    var recordImage = "circle.inset.filled"
+    var playImage = "play.circle"
+    var editTitle = "編輯"
+}
+
 final class RecordViewModel {
     private let repository = RecordRepository()
     
@@ -102,17 +119,25 @@ final class RecordViewModel {
             currentRecordingData = nil
         }
     }
-    /// 取得「編輯按鈕」的顯示文字
-    func getEditButtonText() -> String {
-        return (viewState == .editing) ? "完成" : "編輯"
-    }
-    /// 取得「錄音按鈕」的顯示圖片
-    func getRecorderButtonImage() -> String {
-        return (viewState == .recording) ? "pause.circle" : "record.circle"
-    }
-    /// 取得「播放按鈕」的顯示圖片
-    func getPlayerButtonImage() -> String {
-        return (viewState == .playing) ? "pause.circle" : "play.circle.fill"
+    /// 依目前 viewState 推導所有控制項該有的狀態
+    var controlState: ControlState {
+        switch viewState {
+        case .none:
+            return ControlState(record: true, segment: true, edit: true, tableInteraction: true)
+        case .selectedData:
+            return ControlState(record: true, play: true, segment: true, edit: true,
+                                editName: true, share: true, slider: true, tableInteraction: true)
+        case .recording:
+            return ControlState(record: true, stop: true, recordImage: "pause.circle")
+        case .recordingPause:
+            return ControlState(record: true, stop: true, recordImage: "record.circle")
+        case .playing:
+            return ControlState(stop: true, play: true, slider: true, playImage: "pause.circle")
+        case .playingPause:
+            return ControlState(stop: true, play: true, slider: true, playImage: "play.circle.fill")
+        case .editing:
+            return ControlState(edit: true, tableInteraction: true, editTitle: "完成")
+        }
     }
     /// 記錄已選擇的檔案
     func selectRecord(at index: Int) {

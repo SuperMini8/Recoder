@@ -27,9 +27,8 @@ class RecordViewController: UIViewController {
         self.tableView.dataSource = self
         self.tableView.delegate = self
         playerService.onFinishPlaying = { [weak self] in self?.handlePlayingFinished() }
-        self.playTimeSlider.isEnabled = false
         self.navigationItem.leftBarButtonItem = self.editButtonItem
-        self.editButtonItem.title = "編輯"
+        render()
     }
     /// 系統設置
     private func setAudioSession() {
@@ -61,19 +60,13 @@ class RecordViewController: UIViewController {
     override func setEditing(_ editing: Bool, animated: Bool) {
         super.setEditing(editing, animated: animated)
         self.tableView.setEditing(editing, animated: true)
-        if self.tableView.isEditing {
-            self.playTimeSlider.isEnabled = false
-            self.editNameButton.isEnabled = false
-            self.shareButton.isEnabled = false
-            self.recordButton.isEnabled = false
-            self.playButton.isEnabled = false
-            self.editButtonItem.title = "完成"
-            print("要刪除")
-        }else {
-            self.recordButton.isEnabled = true
-            print("已完成")
-            self.editButtonItem.title = "編輯"
+        if editing {
+            viewModel.viewState = .editing
+        } else {
+            // 離開編輯，依是否仍有選取回到對應狀態
+            viewModel.viewState = viewModel.selectedRecordData != nil ? .selectedData : .none
         }
+        render()
     }
     
     // MARK: 錄音按鈕
@@ -106,17 +99,17 @@ class RecordViewController: UIViewController {
             viewModel.viewState = .recordingPause
             recorderService.pause()
             self.ticker.stop()
-            self.recordButton.setBackgroundImage( UIImage(systemName: "record.circle"), for: .normal)  //暫停時，按鈕改成在錄音鍵
+            render()
         // 其餘狀態（此時傳進來的為錄音）
         default:
             viewModel.viewState = .recording
             recorderService.record()
-            self.recordButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal)   //錄音時，按鈕改成暫停鍵
+            self.playTimeSlider.value = 0
             if !self.ticker.isRunning {
                 self.ticker.onTick = { [weak self] in self?.updatedTimeLabel() }
                 self.ticker.start(interval: 0.1)
             }
-            isRecordingAboutButton()
+            render()
         }
     }
     // MARK: 錄音時間
@@ -153,27 +146,25 @@ class RecordViewController: UIViewController {
                 }
             }
             recorderService.clearRecorder()
-            // 就算儲存失敗，也要更新 UI
-            self.recordButton.setBackgroundImage(UIImage(systemName: "circle.inset.filled"), for: .normal)
             self.ticker.stop()
 
         case .playing,
              .playingPause:
-            viewModel.viewState = .none
+            // 停止播放後仍保有選取，回到 selectedData 讓狀態與 UI 一致
+            viewModel.viewState = .selectedData
             playerService.stop()
             playerService.clearPlayer()
             self.playingTime = 0
             self.ticker.stop()
-            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
             if let selectedRecordData = viewModel.selectedRecordData {
                 self.timeLabel.text = TimeFormatter.string(from: Double(selectedRecordData.recordTime))
                 self.playTimeSlider.value = 0
             }
-            
+
         default:
             return
         }
-        allStopAboutButton()
+        render()
     }
     //MARK: 播放按鈕
     @IBAction func play(_ sender: UIButton) {
@@ -195,9 +186,8 @@ class RecordViewController: UIViewController {
             playerService.pause()
             self.playingTime = 0
             self.ticker.stop()
-            //暫停時，將按鈕改成再播放鍵
-            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle.fill"), for: .normal)
-            
+            render()
+
         // 其餘狀態（此時傳進來的為播放）
         default:
             viewModel.viewState = .playing
@@ -210,9 +200,7 @@ class RecordViewController: UIViewController {
                 self.ticker.onTick = { [weak self] in self?.updatePlayingTime() }
                 self.ticker.start(interval: 0.01)
             }
-            //播放中，按鈕改成暫停鍵
-            self.playButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal)
-            isPlayingAboutButton()
+            render()
         }
     }
     //MARK: 拖動進度條
@@ -231,11 +219,9 @@ class RecordViewController: UIViewController {
     private func handlePlayingFinished() {
         viewModel.viewState = .selectedData
         playerService.clearPlayer()
-        //播放鍵變回一般的
-        self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
-        allStopAboutButton()
         self.playingTime = 0
         self.ticker.stop()     //計時器停止
+        render()
     }
     // MARK: 編輯名字
     @IBAction func editName(_ sender: Any) {
@@ -244,16 +230,16 @@ class RecordViewController: UIViewController {
             //使用alert來改名
             let alert = UIAlertController(title: "請輸入標題", message: nil, preferredStyle: .alert)
             let ok = UIAlertAction(title: "確定", style: .default) { [weak self] _ in
-                guard let text = alert.textFields![0].text else { return }
-                self?.playButton.isEnabled = false   // 編輯結束，必須重選，按鈕才能按
-                self?.editNameButton.isEnabled = false
-                self?.playTimeSlider.isEnabled = false
+                guard let self, let text = alert.textFields![0].text else { return }
                 do {
-                    try self?.viewModel.renameRecord(at: selectedIndex, title: text)
-                    self?.tableView.reloadRows(at: [IndexPath(row: selectedIndex, section: 0)], with: .automatic)
+                    try self.viewModel.renameRecord(at: selectedIndex, title: text)
+                    self.tableView.reloadRows(at: [IndexPath(row: selectedIndex, section: 0)], with: .automatic)
                 } catch {
                     print("命名儲存失敗：\(error.localizedDescription)")
                 }
+                // 改名後取消選取，必須重選才能操作
+                self.viewModel.clearSelection()
+                self.render()
             }
             let cancel = UIAlertAction(title: "取消", style: .cancel, handler: nil)
             alert.addTextField(configurationHandler: { textField in
@@ -304,46 +290,25 @@ class RecordViewController: UIViewController {
             
         }
     }
-    //錄音時的按鈕設置
-    func isRecordingAboutButton() {
-        stopButton.isEnabled = true  //需要停止鍵來停止
-        playButton.isEnabled = false //錄音放，不給播放
-        settingSegment.isEnabled = false  //錄音中不給改音質
-        editButtonItem.isEnabled = false  //不可以刪檔，在錄音的時候
-        editNameButton.isEnabled = false
-        shareButton.isEnabled = false
-        tableView.isUserInteractionEnabled = false
-        tableView.isEditing = false
-        playTimeSlider.isEnabled = false
-        playTimeSlider.value = 0
+    /// 依 viewModel.viewState 統一套用所有控制項的啟用狀態與外觀
+    private func render() {
+        let state = viewModel.controlState
+        recordButton.isEnabled = state.record
+        stopButton.isEnabled = state.stop
+        playButton.isEnabled = state.play
+        settingSegment.isEnabled = state.segment
+        editButtonItem.isEnabled = state.edit
+        editNameButton.isEnabled = state.editName
+        shareButton.isEnabled = state.share
+        playTimeSlider.isEnabled = state.slider
+        tableView.isUserInteractionEnabled = state.tableInteraction
+
+        recordButton.setBackgroundImage(UIImage(systemName: state.recordImage), for: .normal)
+        playButton.setBackgroundImage(UIImage(systemName: state.playImage), for: .normal)
+        editButtonItem.title = state.editTitle
     }
-    //開始播放時的按鈕設置
-    func isPlayingAboutButton() {
-        recordButton.isEnabled = false
-        stopButton.isEnabled = true
-        settingSegment.isEnabled = false
-        editButtonItem.isEnabled = false
-        editNameButton.isEnabled = false
-        shareButton.isEnabled = false
-        tableView.isUserInteractionEnabled = false
-    }
-    //按下停止鍵時的按鈕設置
-    func allStopAboutButton() {
-        recordButton.isEnabled = true
-        stopButton.isEnabled = false
-        settingSegment.isEnabled = true
-        editButtonItem.isEnabled = true
-        tableView.isUserInteractionEnabled = true
-    }
-    //點選row時的按鈕設置
-    func selectedRowAboutButton() {
-        playButton.isEnabled = true
-        editNameButton.isEnabled = true
-        shareButton.isEnabled = true
-        playTimeSlider.isEnabled = true
-        playTimeSlider.value = 0
-    }
-    
+
+
     /// 顯示 alert
     func showAlert(title: String?,
                    message: String?,
@@ -396,11 +361,16 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
             } catch {
                 print("刪除失敗：\(error.localizedDescription)")
             }
-            self.timeLabel.text = TimeFormatter.string(from: 0)
-            self.editNameButton.isEnabled = false
-            self.playButton.isEnabled = false
-            self.stopButton.isEnabled = false
-            self.shareButton.isEnabled = false
+            // 仍在編輯模式則維持 editing，否則依是否還有選取決定狀態
+            if self.isEditing {
+                self.viewModel.viewState = .editing
+            } else {
+                self.viewModel.viewState = self.viewModel.selectedRecordData != nil ? .selectedData : .none
+            }
+            if self.viewModel.selectedRecordData == nil {
+                self.timeLabel.text = TimeFormatter.string(from: 0)
+            }
+            self.render()
         },
                   action2Title: "取消",
                   action2Style: .cancel
@@ -412,9 +382,10 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
         viewModel.selectRecord(at: indexPath.row)
         guard let selectedData = viewModel.selectedRecordData else { return }
         settingSegment.selectedSegmentIndex = selectedData.qualityType
-        selectedRowAboutButton()
         playTimeSlider.maximumValue = Float(selectedData.recordTime)
+        playTimeSlider.value = 0
         self.timeLabel.text = TimeFormatter.string(from: Double(selectedData.recordTime))
+        render()
     }
 
     
