@@ -12,7 +12,7 @@ class RecordViewController: UIViewController {
     @IBOutlet weak var stopButton: UIButton!     //停止按鈕
     @IBOutlet weak var playButton: UIButton!    //播放按鈕
     @IBOutlet weak var editNameButton: UIButton!     //編輯名字按鈕
-    var timer : Timer?  //更新畫面用的計時器
+    private let ticker = Ticker()  //更新畫面用的計時器
     var playingTime : Float = 0
     
     private var viewModel = RecordViewModel()
@@ -104,22 +104,22 @@ class RecordViewController: UIViewController {
         case .recording:
             viewModel.viewState = .recordingPause
             recorderService.pause()
-            self.timer?.invalidate()
-            self.timer = nil
+            self.ticker.stop()
             self.recordButton.setBackgroundImage( UIImage(systemName: "record.circle"), for: .normal)  //暫停時，按鈕改成在錄音鍵
         // 其餘狀態（此時傳進來的為錄音）
         default:
             viewModel.viewState = .recording
             recorderService.record()
             self.recordButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal)   //錄音時，按鈕改成暫停鍵
-            if self.timer == nil {
-                self.timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(updatedTimeLabel), userInfo: nil, repeats: true)
+            if !self.ticker.isRunning {
+                self.ticker.onTick = { [weak self] in self?.updatedTimeLabel() }
+                self.ticker.start(interval: 0.1)
             }
             isRecordingAboutButton()
         }
     }
     // MARK: 錄音時間
-    @objc func updatedTimeLabel() {
+    private func updatedTimeLabel() {
         let recordTime = recorderService.getRecordCurrentTime()
         self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(recordTime)/60)/60,(Int(recordTime)/60)%60,Int(recordTime)%60) as String
         
@@ -154,17 +154,15 @@ class RecordViewController: UIViewController {
             recorderService.clearRecorder()
             // 就算儲存失敗，也要更新 UI
             self.recordButton.setBackgroundImage(UIImage(systemName: "circle.inset.filled"), for: .normal)
-            self.timer?.invalidate()
-            self.timer = nil
-            
+            self.ticker.stop()
+
         case .playing,
              .playingPause:
             viewModel.viewState = .none
             playerService.stop()
             playerService.clearPlayer()
             self.playingTime = 0
-            self.timer?.invalidate()
-            self.timer = nil
+            self.ticker.stop()
             self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
             if let selectedRecordData = viewModel.selectedRecordData {
                 self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(selectedRecordData.recordTime)/60)/60,(Int(selectedRecordData.recordTime)/60)%60,Int(selectedRecordData.recordTime)%60) as String
@@ -195,8 +193,7 @@ class RecordViewController: UIViewController {
             viewModel.viewState = .playingPause
             playerService.pause()
             self.playingTime = 0
-            self.timer?.invalidate()
-            self.timer = nil
+            self.ticker.stop()
             //暫停時，將按鈕改成再播放鍵
             self.playButton.setBackgroundImage(UIImage(systemName: "play.circle.fill"), for: .normal)
             
@@ -208,8 +205,9 @@ class RecordViewController: UIViewController {
             }
             playerService.play()
             self.playingTime = 0
-            if self.timer == nil {
-            self.timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(playTime), userInfo: nil, repeats: true)
+            if !self.ticker.isRunning {
+                self.ticker.onTick = { [weak self] in self?.playTime() }
+                self.ticker.start(interval: 0.01)
             }
             //播放中，按鈕改成暫停鍵
             self.playButton.setBackgroundImage(UIImage(systemName: "pause.circle"), for: .normal)
@@ -224,7 +222,7 @@ class RecordViewController: UIViewController {
         self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (changeTime/60)/60,(changeTime/60)%60,changeTime%60) as String
     }
     // MARK: 播放時間
-    @objc func playTime () {
+    private func playTime () {
         if playerService.isPlaying() {
             let playTime = Int(playerService.getPlayingCurrentTime())
             self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (playTime/60)/60,(playTime/60)%60,playTime%60) as String
@@ -236,8 +234,7 @@ class RecordViewController: UIViewController {
             self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
             allStopAboutButton()
             self.playingTime = 0
-            self.timer?.invalidate()     //計時器停止
-            self.timer = nil
+            self.ticker.stop()     //計時器停止
         }
     }
     // MARK: 編輯名字
@@ -294,10 +291,9 @@ class RecordViewController: UIViewController {
             }
         }
         recorderService.clearRecorder()
-        self.timer?.invalidate()
-        self.timer = nil
+        self.ticker.stop()
     }
-    
+
     //MARK: 傳送檔案
     @IBOutlet weak var shareButton: UIBarButtonItem!
     @IBAction func share(_ sender: UIBarButtonItem) {
