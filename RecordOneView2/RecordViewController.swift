@@ -26,6 +26,7 @@ class RecordViewController: UIViewController {
         setSegment()
         self.tableView.dataSource = self
         self.tableView.delegate = self
+        playerService.onFinishPlaying = { [weak self] in self?.handlePlayingFinished() }
         self.playTimeSlider.isEnabled = false
         self.navigationItem.leftBarButtonItem = self.editButtonItem
         self.editButtonItem.title = "編輯"
@@ -121,7 +122,7 @@ class RecordViewController: UIViewController {
     // MARK: 錄音時間
     private func updatedTimeLabel() {
         let recordTime = recorderService.getRecordCurrentTime()
-        self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(recordTime)/60)/60,(Int(recordTime)/60)%60,Int(recordTime)%60) as String
+        self.timeLabel.text = TimeFormatter.string(from: recordTime)
         
         guard let recordData = self.viewModel.currentRecordingData else { return }
         recordData.recordTime = Float(recordTime)
@@ -165,7 +166,7 @@ class RecordViewController: UIViewController {
             self.ticker.stop()
             self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
             if let selectedRecordData = viewModel.selectedRecordData {
-                self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(selectedRecordData.recordTime)/60)/60,(Int(selectedRecordData.recordTime)/60)%60,Int(selectedRecordData.recordTime)%60) as String
+                self.timeLabel.text = TimeFormatter.string(from: Double(selectedRecordData.recordTime))
                 self.playTimeSlider.value = 0
             }
             
@@ -206,7 +207,7 @@ class RecordViewController: UIViewController {
             playerService.play()
             self.playingTime = 0
             if !self.ticker.isRunning {
-                self.ticker.onTick = { [weak self] in self?.playTime() }
+                self.ticker.onTick = { [weak self] in self?.updatePlayingTime() }
                 self.ticker.start(interval: 0.01)
             }
             //播放中，按鈕改成暫停鍵
@@ -218,24 +219,23 @@ class RecordViewController: UIViewController {
     @IBAction func changePlayTime(_ sender: UISlider) {
         self.playingTime = self.playTimeSlider.value
         playerService.setPlayingCurrentTime(Double(playingTime))
-        let changeTime = Int(playingTime)
-        self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (changeTime/60)/60,(changeTime/60)%60,changeTime%60) as String
+        self.timeLabel.text = TimeFormatter.string(from: Double(playingTime))
     }
-    // MARK: 播放時間
-    private func playTime () {
-        if playerService.isPlaying() {
-            let playTime = Int(playerService.getPlayingCurrentTime())
-            self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (playTime/60)/60,(playTime/60)%60,playTime%60) as String
-            self.playTimeSlider.value = Float(playerService.getPlayingCurrentTime())
-        } else {
-            viewModel.viewState = .selectedData
-            playerService.clearPlayer()
-            //播放鍵變回一般的
-            self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
-            allStopAboutButton()
-            self.playingTime = 0
-            self.ticker.stop()     //計時器停止
-        }
+    // MARK: 播放時間（Ticker 每次觸發，只負責更新進度）
+    private func updatePlayingTime() {
+        let playTime = playerService.getPlayingCurrentTime()
+        self.timeLabel.text = TimeFormatter.string(from: playTime)
+        self.playTimeSlider.value = Float(playTime)
+    }
+    // MARK: 播放自然結束（由 AVAudioPlayerDelegate 事件觸發）
+    private func handlePlayingFinished() {
+        viewModel.viewState = .selectedData
+        playerService.clearPlayer()
+        //播放鍵變回一般的
+        self.playButton.setBackgroundImage(UIImage(systemName: "play.circle"), for: .normal)
+        allStopAboutButton()
+        self.playingTime = 0
+        self.ticker.stop()     //計時器停止
     }
     // MARK: 編輯名字
     @IBAction func editName(_ sender: Any) {
@@ -377,7 +377,7 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
         let cell = self.tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         let recordData = self.viewModel.recordDatas[indexPath.row]
         cell.textLabel?.text = recordData.title
-        cell.detailTextLabel?.text = NSString(format: "%02d:%02d:%02d", (Int(recordData.recordTime)/60)/60,(Int(recordData.recordTime)/60)%60,Int(recordData.recordTime)%60) as String
+        cell.detailTextLabel?.text = TimeFormatter.string(from: Double(recordData.recordTime))
         return cell
     }
     
@@ -396,7 +396,7 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
             } catch {
                 print("刪除失敗：\(error.localizedDescription)")
             }
-            self.timeLabel.text = NSString(format: "%02d:%02d:%02d", 0,0,0) as String
+            self.timeLabel.text = TimeFormatter.string(from: 0)
             self.editNameButton.isEnabled = false
             self.playButton.isEnabled = false
             self.stopButton.isEnabled = false
@@ -414,7 +414,7 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
         settingSegment.selectedSegmentIndex = selectedData.qualityType
         selectedRowAboutButton()
         playTimeSlider.maximumValue = Float(selectedData.recordTime)
-        self.timeLabel.text = NSString(format: "%02d:%02d:%02d", (Int(selectedData.recordTime)/60)/60,(Int(selectedData.recordTime)/60)%60,Int(selectedData.recordTime)%60) as String
+        self.timeLabel.text = TimeFormatter.string(from: Double(selectedData.recordTime))
     }
 
     

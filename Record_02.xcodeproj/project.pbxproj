@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1D81DE2F301742C100E02552 /* Ticker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEC00000000000000000002 /* Ticker.swift */; };
+		FCEC00000000000000000003 /* TimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEC00000000000000000004 /* TimeFormatter.swift */; };
 		EC27DC4727FDAD1400BBE83C /* RecorderHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC27DC4627FDAD1400BBE83C /* RecorderHelper.swift */; };
 		EC563DE02773112D00BCD7C8 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC563DDF2773112D00BCD7C8 /* AppDelegate.swift */; };
 		EC563DE22773112D00BCD7C8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC563DE12773112D00BCD7C8 /* SceneDelegate.swift */; };
@@ -45,6 +46,7 @@
 		ECC864482774895E00FDD1BC /* CoreDataHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreDataHelper.swift; sourceTree = "<group>"; };
 		ECC8644B2774896800FDD1BC /* Model.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Model.xcdatamodel; sourceTree = "<group>"; };
 		FCEC00000000000000000002 /* Ticker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ticker.swift; sourceTree = "<group>"; };
+		FCEC00000000000000000004 /* TimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +95,7 @@
 				ECBB19A43015FBD400C11F8B /* AudioRecorderService.swift */,
 				ECBB19A63016342500C11F8B /* AudioPlayerService.swift */,
 				FCEC00000000000000000002 /* Ticker.swift */,
+				FCEC00000000000000000004 /* TimeFormatter.swift */,
 			);
 			path = RecordOneView2;
 			sourceTree = "<group>";
@@ -180,6 +183,7 @@
 			files = (
 				ECC864492774895E00FDD1BC /* CoreDataHelper.swift in Sources */,
 				1D81DE2F301742C100E02552 /* Ticker.swift in Sources */,
+				FCEC00000000000000000003 /* TimeFormatter.swift in Sources */,
 				EC563DFB277341E600BCD7C8 /* RecordData.swift in Sources */,
 				EC563DE42773112D00BCD7C8 /* RecordViewController.swift in Sources */,
 				EC563DE02773112D00BCD7C8 /* AppDelegate.swift in Sources */,

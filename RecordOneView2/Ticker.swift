@@ -6,7 +6,7 @@
 //
 
 import Foundation
-
+/// 專門處理 Timer
 final class Ticker {
 
     private var timer: Timer?

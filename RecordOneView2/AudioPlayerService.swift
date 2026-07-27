@@ -7,10 +7,13 @@
 
 import AVFoundation
 
-final class AudioPlayerService {
-    
+final class AudioPlayerService: NSObject, AVAudioPlayerDelegate {
+
     private var player : AVAudioPlayer?
-    
+
+    /// 播放自然結束時的回呼（手動 stop 不會觸發）
+    var onFinishPlaying: (() -> Void)?
+
     /// 判斷需不需要設置播放器
     func isNeedSetPlayer() -> Bool {
         return player == nil
@@ -20,12 +23,8 @@ final class AudioPlayerService {
         if player == nil {
             let dataURL = try recordData.fileURL()
             player = try AVAudioPlayer(contentsOf: dataURL)
+            player?.delegate = self
         }
-    }
-    /// 是否正在播放
-    func isPlaying() -> Bool {
-        guard let player else { return false }
-        return player.isPlaying
     }
     /// 播放
     func play() {
@@ -60,5 +59,11 @@ final class AudioPlayerService {
     func setPlayingCurrentTime(_ time: Double)  {
         guard let player else { return }
         player.currentTime = time
+    }
+
+    // MARK: - AVAudioPlayerDelegate
+    /// 播放到結尾自然結束時觸發（AVAudioPlayer 在啟動播放的執行緒上回呼，此處即主執行緒）
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        onFinishPlaying?()
     }
 }
