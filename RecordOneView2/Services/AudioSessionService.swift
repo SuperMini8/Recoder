@@ -9,6 +9,7 @@ import AVFoundation
 
 final class AudioSessionService {
 
+    /// 麥克風權限是否為允許
     var isRecordPermissionGranted: Bool {
         if #available(iOS 17.0, *) {
             return AVAudioApplication.shared.recordPermission == .granted

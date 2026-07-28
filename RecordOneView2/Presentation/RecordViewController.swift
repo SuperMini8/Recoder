@@ -93,7 +93,7 @@ class RecordViewController: UIViewController {
             self.handleRecorderButtonTap()
         }
     }
-
+    /// 錄音
     private func handleRecorderButtonTap() {
         if viewModel.viewState == .playing || viewModel.viewState == .playingPause {
             return

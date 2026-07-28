@@ -14,7 +14,7 @@ final class RecordingFileStore {
     private let fileExtension = "wav"
 
     private init() {}
-
+    /// 用 id 取得錄音檔的 URL
     func fileURL(for recordID: String, createDirectory: Bool = false) throws -> URL {
         guard let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw URLError(.badURL)
@@ -31,7 +31,7 @@ final class RecordingFileStore {
 
         return directoryURL.appendingPathComponent(recordID).appendingPathExtension(fileExtension)
     }
-
+    /// 用 id 刪除錄音檔
     func deleteFile(for recordID: String) throws {
         let recordURL = try fileURL(for: recordID)
         guard FileManager.default.fileExists(atPath: recordURL.path) else { return }

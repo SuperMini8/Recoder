@@ -19,8 +19,13 @@ final class RecordRepository {
     /// 取得已儲存的 RecordData
     func fetchRecords() throws -> [RecordData] {
         let request = NSFetchRequest<RecordData>(entityName: "RecordData")
+        // 資料的排序
         request.sortDescriptors = [
+            // 先用 createdAt 排序。ascending: false 表示大的在前面，所以日期越新的越前面
             NSSortDescriptor(key: "createdAt", ascending: false),
+            // 如果多筆資料的 createdAt 一樣，再依 title 遞增排序
+            NSSortDescriptor(key: "title", ascending: true),
+            // 最後才是用 recordID
             NSSortDescriptor(key: "recordID", ascending: false)
         ]
         return try context.fetch(request)
