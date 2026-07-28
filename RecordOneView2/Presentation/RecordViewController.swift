@@ -17,6 +17,11 @@ class RecordViewController: UIViewController {
     private var audioSessionService = AudioSessionService()
     private var recorderService = AudioRecorderService()
     private var playerService = AudioPlayerService()
+    /// 不使用系統 editButtonItem，避免 title 被 UIKit 自動管理
+    private lazy var editRecordsButton = UIBarButtonItem(title: "編輯",
+                                                         style: .plain,
+                                                         target: self,
+                                                         action: #selector(toggleEditingMode))
         
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,7 +31,7 @@ class RecordViewController: UIViewController {
         self.tableView.dataSource = self
         self.tableView.delegate = self
         playerService.onFinishPlaying = { [weak self] in self?.handlePlayingFinished() }
-        self.navigationItem.leftBarButtonItem = self.editButtonItem
+        self.navigationItem.leftBarButtonItem = editRecordsButton
         render()
     }
     /// 系統設置
@@ -52,6 +57,10 @@ class RecordViewController: UIViewController {
         settingSegment.selectedSegmentIndex = viewModel.qualityType.rawValue
     }
     // MARK: edit Delete
+    @objc private func toggleEditingMode() {
+        setEditing(!isEditing, animated: true)
+    }
+
     override func setEditing(_ editing: Bool, animated: Bool) {
         super.setEditing(editing, animated: animated)
         self.tableView.setEditing(editing, animated: true)
@@ -305,7 +314,7 @@ class RecordViewController: UIViewController {
         stopButton.isEnabled = state.stop
         playButton.isEnabled = state.play
         settingSegment.isEnabled = state.segment
-        editButtonItem.isEnabled = state.edit
+        editRecordsButton.isEnabled = state.edit
         editNameButton.isEnabled = state.editName
         shareButton.isEnabled = state.share
         playTimeSlider.isEnabled = state.slider
@@ -313,7 +322,7 @@ class RecordViewController: UIViewController {
 
         recordButton.setBackgroundImage(UIImage(systemName: state.recordImage), for: .normal)
         playButton.setBackgroundImage(UIImage(systemName: state.playImage), for: .normal)
-        editButtonItem.title = state.editTitle
+        editRecordsButton.title = state.editTitle
     }
 }
 
