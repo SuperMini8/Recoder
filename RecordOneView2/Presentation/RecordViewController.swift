@@ -274,26 +274,35 @@ class RecordViewController: UIViewController {
     //MARK: 離開畫面的時候
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        switch viewModel.viewState {
         // 如果還有未儲存的錄音
-        guard viewModel.viewState == .recording || viewModel.viewState == .recordingPause
-        else { return }
-        viewModel.viewState = .none
-        recorderService.stop()
-        if let recordData = self.viewModel.currentRecordingData {
-            do {
-                try viewModel.finishCurrentRecording(duration: recordData.recordTime)
-            } catch {
-                // viewWillDisappear 不 show alert 純 print
-                print("儲存失敗：\(error.localizedDescription)")
+        case .recording, .recordingPause:
+            viewModel.viewState = .none
+            recorderService.stop()
+            if let recordData = self.viewModel.currentRecordingData {
                 do {
-                    try viewModel.discardCurrentRecording()
+                    try viewModel.finishCurrentRecording(duration: recordData.recordTime)
                 } catch {
-                    print("清除未完成錄音失敗：\(error.localizedDescription)")
+                    // viewWillDisappear 不 show alert 純 print
+                    print("儲存失敗：\(error.localizedDescription)")
+                    do {
+                        try viewModel.discardCurrentRecording()
+                    } catch {
+                        print("清除未完成錄音失敗：\(error.localizedDescription)")
+                    }
                 }
             }
+            recorderService.clearRecorder()
+            self.ticker.stop()
+        // 如果還正在播放
+        case .playing:
+            viewModel.viewState = .playingPause
+            playerService.pause()
+            self.ticker.stop()
+        default:
+            break
         }
-        recorderService.clearRecorder()
-        self.ticker.stop()
+        
     }
 
     //MARK: 傳送檔案
@@ -339,13 +348,13 @@ class RecordViewController: UIViewController {
 
         guard shouldKeepSelection,
               let selectedIndex = viewModel.selectedRecordIndex else {
-            /// 取消所有所擇狀態
+            // 取消所有選擇狀態
             tableView.indexPathsForSelectedRows?.forEach {
                 tableView.deselectRow(at: $0, animated: true)
             }
             return
         }
-        /// 維持選擇狀態
+        // 維持選擇狀態
         tableView.selectRow(at: IndexPath(row: selectedIndex, section: 0),
                             animated: false,
                             scrollPosition: .none)
