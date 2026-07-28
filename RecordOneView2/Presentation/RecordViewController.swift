@@ -323,6 +323,32 @@ class RecordViewController: UIViewController {
         recordButton.setBackgroundImage(UIImage(systemName: state.recordImage), for: .normal)
         playButton.setBackgroundImage(UIImage(systemName: state.playImage), for: .normal)
         editRecordsButton.title = state.editTitle
+        syncTableSelection()
+    }
+
+    /// 依 viewState 同步 Cell 的選取背景
+    private func syncTableSelection() {
+        // 是否要保持選擇狀態
+        let shouldKeepSelection: Bool
+        switch viewModel.viewState {
+        case .selectedData, .playing, .playingPause:
+            shouldKeepSelection = true
+        default:
+            shouldKeepSelection = false
+        }
+
+        guard shouldKeepSelection,
+              let selectedIndex = viewModel.selectedRecordIndex else {
+            /// 取消所有所擇狀態
+            tableView.indexPathsForSelectedRows?.forEach {
+                tableView.deselectRow(at: $0, animated: true)
+            }
+            return
+        }
+        /// 維持選擇狀態
+        tableView.selectRow(at: IndexPath(row: selectedIndex, section: 0),
+                            animated: false,
+                            scrollPosition: .none)
     }
 }
 
