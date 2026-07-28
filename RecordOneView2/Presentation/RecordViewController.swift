@@ -48,6 +48,8 @@ class RecordViewController: UIViewController {
         segmentItems.enumerated().forEach { index, title in
             settingSegment.insertSegment(withTitle: title, at: index, animated: false)
         }
+        // 設定預設值
+        settingSegment.selectedSegmentIndex = viewModel.qualityType.rawValue
     }
     // MARK: edit Delete
     override func setEditing(_ editing: Bool, animated: Bool) {
