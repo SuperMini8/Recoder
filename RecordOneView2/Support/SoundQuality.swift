@@ -6,7 +6,6 @@
 //
 
 import AVFoundation
-import UIKit
 
 enum SoundQuality: Int, CaseIterable {
     case low = 0
@@ -26,7 +25,7 @@ enum SoundQuality: Int, CaseIterable {
     }
     
     /// 儲存的格式
-    var audioFormatID: AudioFormatID {
+    private var audioFormatID: AudioFormatID {
         switch self {
         case  .low:
             return kAudioFormatLinearPCM
@@ -38,7 +37,7 @@ enum SoundQuality: Int, CaseIterable {
     }
     
     /// 每秒的錄音採樣率
-    var sampleRate: Double {
+    private var sampleRate: Double {
         switch self {
         case .low:
             return 16_000.0
@@ -50,7 +49,7 @@ enum SoundQuality: Int, CaseIterable {
     }
     
     /// 錄音音質
-    var encoderAudioQuality: AVAudioQuality {
+    private var encoderAudioQuality: AVAudioQuality {
         switch self {
         case .low:
             return .medium
@@ -64,7 +63,7 @@ enum SoundQuality: Int, CaseIterable {
     /// 聲道數
     /// 1：適合：人聲、語音備忘錄、訪談、語音辨識（檔案也比較小）
     /// 2：適合：音樂、環境音、外接立體聲麥克風（單純人聲通常沒有必要使用）
-    var numberOfChannels: Int {
+    private var numberOfChannels: Int {
         switch self {
         case .low:
             return 1
@@ -77,7 +76,7 @@ enum SoundQuality: Int, CaseIterable {
     
     /// 若使用 WAV／PCM，還需要設定
     /// 採樣深度
-    var linearPCMBitDepth: Int {
+    private var linearPCMBitDepth: Int {
         switch self {
         case .low:
             return 16
@@ -89,7 +88,7 @@ enum SoundQuality: Int, CaseIterable {
     }
     
     /// AAC 每秒使用多少 bit
-    var encoderBitRate: Int {
+    private var encoderBitRate: Int {
         switch self {
         case .low:
             return 64_000
@@ -99,5 +98,16 @@ enum SoundQuality: Int, CaseIterable {
             return 128_000
         }
     }
-    
+
+    /// AVAudioRecorder 使用的錄音設定
+    var recorderSettings: [String: Any] {
+        [
+            AVFormatIDKey: audioFormatID,
+            AVSampleRateKey: NSNumber(value: sampleRate),
+            AVEncoderAudioQualityKey: encoderAudioQuality.rawValue,
+            AVNumberOfChannelsKey: numberOfChannels,
+            AVLinearPCMBitDepthKey: linearPCMBitDepth,
+            AVEncoderBitRateKey: encoderBitRate
+        ]
+    }
 }
