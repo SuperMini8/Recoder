@@ -1,6 +1,4 @@
 import UIKit
-import AVFoundation
-import CoreData
 
 class RecordViewController: UIViewController {
     
@@ -16,6 +14,7 @@ class RecordViewController: UIViewController {
     var playingTime : Float = 0
     
     private var viewModel = RecordViewModel()
+    private var audioSessionService = AudioSessionService()
     private var recorderService = AudioRecorderService()
     private var playerService = AudioPlayerService()
         
@@ -32,18 +31,12 @@ class RecordViewController: UIViewController {
     }
     /// 系統設置
     private func setAudioSession() {
-        recorderService.checkRecordPermission { [weak self] isPermission in
-            if isPermission {
-                do {
-                    try self?.recorderService.setSession()
-                } catch  {
-                    print("系統設置錯誤\(error)")
-                }
-            } else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.present(RecorderHelper.share.micNoPermission(), animated: true, completion: nil)
-                }
-            }
+        guard audioSessionService.isRecordPermissionGranted else { return }
+
+        do {
+            try audioSessionService.setSession()
+        } catch  {
+            print("系統設置錯誤\(error)")
         }
     }
     
@@ -71,9 +64,27 @@ class RecordViewController: UIViewController {
     
     // MARK: 錄音按鈕
     @IBAction func recorder(_ sender: UIButton) {
-        // 檢查授權
-        guard let isPermission = recorderService.checkRecordPermission(), isPermission else {
-            self.present(RecorderHelper.share.micNoPermission(), animated: true, completion: nil)
+        // 點擊錄音才詢問權限
+        audioSessionService.requestRecordPermission { [weak self] isPermission in
+            guard let self else { return }
+            guard isPermission else {
+                self.present(AlertFactory.micNoPermission(), animated: true, completion: nil)
+                return
+            }
+
+            do {
+                try self.audioSessionService.setSession()
+            } catch {
+                print("系統設置錯誤\(error)")
+                return
+            }
+
+            self.handleRecorderButtonTap()
+        }
+    }
+
+    private func handleRecorderButtonTap() {
+        if viewModel.viewState == .playing || viewModel.viewState == .playingPause {
             return
         }
         // 是否有需要設置麥克風
@@ -138,10 +149,12 @@ class RecordViewController: UIViewController {
                         let indexPath = IndexPath(row: 0, section: 0)
                         self.tableView.deleteRows(at: [indexPath], with: .automatic)
                         // alert 提醒失敗
-                        showAlert(title: "儲存失敗", message: error.localizedDescription)
+                        present(AlertFactory.make(title: "儲存失敗", message: error.localizedDescription), animated: true)
                     } catch {
                         print("清除未完成錄音失敗：\(error.localizedDescription)")
-                        showAlert(title: "儲存失敗", message: "錄音沒有成功儲存，且清除未完成錄音時發生錯誤：\(error.localizedDescription)")
+                        present(AlertFactory.make(title: "儲存失敗",
+                                                  message: "錄音沒有成功儲存，且清除未完成錄音時發生錯誤：\(error.localizedDescription)"),
+                                animated: true)
                     }
                 }
             }
@@ -227,10 +240,8 @@ class RecordViewController: UIViewController {
     @IBAction func editName(_ sender: Any) {
         if let selectedRecordData = viewModel.selectedRecordData,
            let selectedIndex = viewModel.selectedRecordIndex {
-            //使用alert來改名
-            let alert = UIAlertController(title: "請輸入標題", message: nil, preferredStyle: .alert)
-            let ok = UIAlertAction(title: "確定", style: .default) { [weak self] _ in
-                guard let self, let text = alert.textFields![0].text else { return }
+            let alert = AlertFactory.renameRecord(currentTitle: selectedRecordData.title) { [weak self] text in
+                guard let self else { return }
                 do {
                     try self.viewModel.renameRecord(at: selectedIndex, title: text)
                     self.tableView.reloadRows(at: [IndexPath(row: selectedIndex, section: 0)], with: .automatic)
@@ -241,12 +252,6 @@ class RecordViewController: UIViewController {
                 self.viewModel.clearSelection()
                 self.render()
             }
-            let cancel = UIAlertAction(title: "取消", style: .cancel, handler: nil)
-            alert.addTextField(configurationHandler: { textField in
-                textField.text = selectedRecordData.title
-            })
-            alert.addAction(ok)
-            alert.addAction(cancel)
             present(alert, animated: true, completion: nil)
         }
     }
@@ -286,13 +291,14 @@ class RecordViewController: UIViewController {
         if let selectedData = viewModel.selectedRecordData,
             let fileURL = try? selectedData.fileURL() {
             let share = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+            share.popoverPresentationController?.barButtonItem = sender
             present(share, animated: true, completion: nil)
             
         }
     }
     /// 依 viewModel.viewState 統一套用所有控制項的啟用狀態與外觀
     private func render() {
-        let state = viewModel.controlState
+        let state = viewModel.viewState.controlState
         recordButton.isEnabled = state.record
         stopButton.isEnabled = state.stop
         playButton.isEnabled = state.play
@@ -306,29 +312,6 @@ class RecordViewController: UIViewController {
         recordButton.setBackgroundImage(UIImage(systemName: state.recordImage), for: .normal)
         playButton.setBackgroundImage(UIImage(systemName: state.playImage), for: .normal)
         editButtonItem.title = state.editTitle
-    }
-
-
-    /// 顯示 alert
-    func showAlert(title: String?,
-                   message: String?,
-                   alertStyle: UIAlertController.Style = .alert,
-                   action1Title: String? = nil,
-                   action1Style: UIAlertAction.Style = .default,
-                   action1Handler: ((UIAlertAction) -> Void)? = nil,
-                   action2Title: String? = nil,
-                   action2Style: UIAlertAction.Style = .default,
-                   action2Handler: ((UIAlertAction) -> Void)? = nil) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: alertStyle)
-        let action1 = UIAlertAction(title: action1Title ?? "確認", style: action1Style, handler: action1Handler)
-        alert.addAction(action1)
-        if action2Title != nil {
-            let action2 = UIAlertAction(title: action2Title, style: action2Style, handler: action2Handler)
-            alert.addAction(action2)
-        }
-        DispatchQueue.main.async { [weak self] in
-            self?.present(alert, animated: true)
-        }
     }
 }
 
@@ -348,12 +331,12 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
     
     // MARK: - UITableViewDelegate
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        showAlert(title: "確定要刪除嗎？",
-                  message: "刪除後將無法復原",
-                  alertStyle: .actionSheet,
-                  action1Title: "刪除",
-                  action1Style: .destructive,
-                  action1Handler: { [weak self] _ in
+        let alert = AlertFactory.make(title: "確定要刪除嗎？",
+                                      message: "刪除後將無法復原",
+                                      preferredStyle: .actionSheet,
+                                      action1Title: "刪除",
+                                      action1Style: .destructive,
+                                      action1Handler: { [weak self] _ in
             guard let self = self else { return }
             do {
                 try self.viewModel.deleteRecord(at: indexPath.row)
@@ -372,9 +355,11 @@ extension RecordViewController: UITableViewDataSource, UITableViewDelegate {
             }
             self.render()
         },
-                  action2Title: "取消",
-                  action2Style: .cancel
+                                      action2Title: "取消",
+                                      action2Style: .cancel,
+                                      sourceView: view
         )
+        present(alert, animated: true)
     }
     // MARK: 選擇row
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

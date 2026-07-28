@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CoreData
 
 /// 畫面狀態
 enum RecordViewState {
@@ -24,23 +23,6 @@ enum RecordViewState {
     case playingPause
     /// 正在編輯
     case editing
-}
-
-/// 由 viewState 推導出的各控制項狀態（單一真相來源，避免散落的 .isEnabled 漂移）
-struct ControlState {
-    var record = false
-    var stop = false
-    var play = false
-    var segment = false
-    var edit = false
-    var editName = false
-    var share = false
-    var slider = false
-    var tableInteraction = false
-
-    var recordImage = "circle.inset.filled"
-    var playImage = "play.circle"
-    var editTitle = "編輯"
 }
 
 final class RecordViewModel {
@@ -73,6 +55,7 @@ final class RecordViewModel {
     }
     /// 準備新的錄音檔
     func prepareNewRecording(id: String, qualityType: SoundQuality) {
+        clearSelection()
         let record = repository.createRecord(id: id, qualityType: qualityType)
         currentRecordingData = record
         recordDatas.insert(record, at: 0)
@@ -99,6 +82,7 @@ final class RecordViewModel {
     }
     /// 更新 Title
     func renameRecord(at index: Int, title: String) throws {
+        guard recordDatas.indices.contains(index) else { return }
         let record = recordDatas[index]
         try repository.updateTitle(record, title: title)
     }
@@ -117,26 +101,6 @@ final class RecordViewModel {
         }
         if isDeletingCurrentRecording {
             currentRecordingData = nil
-        }
-    }
-    /// 依目前 viewState 推導所有控制項該有的狀態
-    var controlState: ControlState {
-        switch viewState {
-        case .none:
-            return ControlState(record: true, segment: true, edit: true, tableInteraction: true)
-        case .selectedData:
-            return ControlState(record: true, play: true, segment: true, edit: true,
-                                editName: true, share: true, slider: true, tableInteraction: true)
-        case .recording:
-            return ControlState(record: true, stop: true, recordImage: "pause.circle")
-        case .recordingPause:
-            return ControlState(record: true, stop: true, recordImage: "record.circle")
-        case .playing:
-            return ControlState(stop: true, play: true, slider: true, playImage: "pause.circle")
-        case .playingPause:
-            return ControlState(stop: true, play: true, slider: true, playImage: "play.circle.fill")
-        case .editing:
-            return ControlState(edit: true, tableInteraction: true, editTitle: "完成")
         }
     }
     /// 記錄已選擇的檔案
