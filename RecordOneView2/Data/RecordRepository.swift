@@ -10,9 +10,19 @@ import CoreData
 /// 集中 RecordData 的 儲存/修改/刪除 邏輯
 final class RecordRepository {
     private let context = CoreDataHelper.shared.managedObjectContext()
+    private let fileStore: RecordingFileStore
+
+    init(fileStore: RecordingFileStore = .shared) {
+        self.fileStore = fileStore
+    }
+
     /// 取得已儲存的 RecordData
     func fetchRecords() throws -> [RecordData] {
         let request = NSFetchRequest<RecordData>(entityName: "RecordData")
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false),
+            NSSortDescriptor(key: "recordID", ascending: false)
+        ]
         return try context.fetch(request)
     }
     /// 建立 RecordData
@@ -33,17 +43,15 @@ final class RecordRepository {
     }
     /// 刪除（先刪除資料再刪檔案 -> 防止看得到卻沒檔案的狀況）
     func delete(_ record: RecordData) throws {
-        let recordURL = try record.fileURL()
+        let recordID = record.recordID
         // 先刪除資料
         context.delete(record)
         try save()
         // 再刪檔案
-        if FileManager.default.fileExists(atPath: recordURL.path) {
-            do {
-                try FileManager.default.removeItem(at: recordURL)
-            } catch {
-                print("刪除音檔失敗：\(error.localizedDescription)")
-            }
+        do {
+            try fileStore.deleteFile(for: recordID)
+        } catch {
+            print("刪除音檔失敗：\(error.localizedDescription)")
         }
     }
     /// 儲存修改

@@ -27,6 +27,8 @@ class CoreDataHelper: NSObject {
         sqlUrl.appendPathComponent("Documents")
         sqlUrl.appendPathComponent("Recorder.sqlite")
         description.url = sqlUrl
+        description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+        description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
         //如果要關閉journal mode，只產生一個sqlite檔案，可以打開這個選項
         //description.setOption(["journal_mode":"DELETE"] as NSDictionary, forKey: NSSQLitePragmasOption)
         container.persistentStoreDescriptions = [description]
