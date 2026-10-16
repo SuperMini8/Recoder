@@ -1,0 +1,114 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+# 專案根目錄
+ROOT_DIR = File.expand_path("..", __dir__)
+PROJECT = File.join(ROOT_DIR, "Record_02.xcodeproj")
+OUTPUT_DIR = File.join(ROOT_DIR, "build")
+
+platform :ios do
+
+  # 共用: 產生 API Key 物件，其他 lane 直接呼叫
+  # 使用 .fetch 若找不到對應的 Key 會立即拋出錯誤，若使用 ["Key"] 找不到對應的 Key 會回傳 nil 並且繼續執行
+  private_lane :asc_key do                      # 標記 private 的 lane 無法從外部呼叫
+    app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),          # 從 .env 讀
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: File.expand_path(
+        ENV.fetch("ASC_KEY_PATH"),              # .p8 檔的路徑
+        __dir__                                 # 取得目前 Ruby 原始檔案所在的目錄（就是 fastlane/ 目錄）
+      ),
+      in_house: false                           # 企業帳號的話要設 true
+    )
+  end
+
+  # 共用: 打包，產生 IPA 檔
+  private_lane :build_ipa do |options|
+    build_app(
+      project: PROJECT,                          # 有 .xcworkspace（例如用 CocoaPods）時改用 workspace:
+      scheme: "Record_02",                       # 必須是 Shared Scheme
+      configuration: "Release",                  # Debug / Release
+      export_method: "app-store",                # app-store / ad-hoc / development / enterprise
+      clean: true,                               # 編譯前先 clean
+      output_directory: OUTPUT_DIR,              # .ipa 輸出位置
+      output_name: "Recorder.ipa",               # .ipa 檔名
+      xcargs: "-allowProvisioningUpdates",       # archive 和 export 都會套用自動簽章，讓 Xcode 自動處理描述檔
+      export_options: {
+        # true: 僅限 TestFlight 內部測試，無法給外部測試人員、也無法送審
+        testFlightInternalTestingOnly: options[:internal_only] == true
+      }
+    )
+  end
+
+  # 共用: 計算 build number 並打包，回傳 ipa 路徑
+  private_lane :prepare_ipa do |options|
+    # 先抓取目前的版本
+    version = get_version_number(
+      xcodeproj: PROJECT,
+      target: "Record_02",
+      configuration: "Release"
+    )
+
+    # 抓取 TestFlight 上這個版本最新的號碼
+    latest_build = latest_testflight_build_number(
+      api_key: options[:api_key],
+      version: version,
+      initial_build_number: 0
+    )
+
+    # 更新 Xcode 專案的 Build Number
+    increment_build_number(
+      build_number: latest_build + 1,
+      xcodeproj: PROJECT
+    )
+    
+    # Archive + Export IPA
+    build_ipa(internal_only: options[:internal_only] == true)
+  end
+
+
+  # TestFlight
+  desc "打包並上傳 TestFlight （僅限內部測試，無法送審）"
+  lane :beta_internal do
+    api_key = asc_key
+    ipa_path = prepare_ipa(api_key: api_key, internal_only: true)
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true   # 上傳後不等 Apple 處理完（處理要等 10~30 分鐘）
+    )
+  end
+  
+  desc "打包一般 build，連同文案、截圖上傳 App Store Connect"
+  lane :release do
+    api_key = asc_key
+    ipa_path = prepare_ipa(api_key: api_key, internal_only: false)
+
+    upload_to_app_store(
+      api_key: api_key,
+      ipa: ipa_path,
+#      skip_binary_upload: true,         # 不上傳 ipa（已經用 beta 傳過）
+      skip_screenshots: false,
+      skip_metadata: false,
+      submit_for_review: false,         # 設 false，到網頁確認後再手動送審
+      automatic_release: false,         # 審核通過後是否自動上架
+      force: true,                      # 跳過 HTML 預覽確認
+      precheck_include_in_app_purchases: false  # 使用 API Key 時要關閉這項檢查
+    )
+  end
+end

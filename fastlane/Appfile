@@ -1,0 +1,8 @@
+app_identifier("com.www.Mini8.Recorder02")      # Bundle ID，跟 Xcode 裡的一樣
+team_id(ENV.fetch("APPLE_TEAM_ID"))	            # Developer Portal 的 Team ID
+
+# apple_id(ENV.fetch("APPLE_ID"))                 # 只有用帳密登入時才需要；改用 API Key 就不需要
+# itc_team_id(ENV.fetch("APPLE_ITC_TEAM_ID"))     # App Store Connect 的 Team ID，帳號只屬於一個團隊時不用填
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile
